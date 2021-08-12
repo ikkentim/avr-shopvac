@@ -61,9 +61,9 @@ F_CPU		= 16000000
 SRC_FILES_SHOPVAC 	= shopvac.c
 OBJECTS_SHOPVAC       = $(call TO_OBJECTS, $(BIN)attiny85/, $(SRC_FILES_SHOPVAC))
 
+.PHONY: shopvac shopvac-isp shopvac-size
 shopvac: INCLUDES	= -I~/Library/Arduino15/packages/attiny/hardware/avr/1.0.2/variants/tiny8
-shopvac: OBJECTS 	= $(OBJECTS_SHOPVAC)
-shopvac: $(OBJECTS_SHOPVAC) $(BIN)shopvac.hex
+shopvac: $(BIN)shopvac.hex
 
 shopvac-isp: avr-upload-shopvac
 shopvac-size: avr-size-shopvac
@@ -72,12 +72,11 @@ $(BIN)shopvac.elf: $(OBJECTS_SHOPVAC)
 	@mkdir -p $(shell dirname $@)
 	$(CC) $< $(LDFLAGS) -o $@
 
-.PHONY: shopvac shopvac-isp shopvac-size clean avr-upload-% avr-size-%
-.PRECIOUS: %.elf
-
 ###########################################
 # Build rules
 ###########################################
+
+.PRECIOUS: %.elf
 
 $(BIN)atmega328p/%.o: %.c
 	@mkdir -p $(shell dirname $@)
@@ -102,6 +101,8 @@ $(BIN)%.dump: $(BIN)%.hex
 # AVR tool targets
 ###########################################
 
+.PHONY: avr-upload-% avr-size-%
+
 avr-upload-%:
 	$(AVRDUDE) $(AVRDUDE_ARGS) $(ISP_FUSES) -U flash:w:$(BIN)$*.hex:i
 
@@ -111,6 +112,8 @@ avr-size-%:
 ###########################################
 # Housekeeping
 ###########################################
+
+.PHONY: clean
 
 clean:
 	rm -rf $(BIN)
