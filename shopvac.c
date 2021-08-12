@@ -4,7 +4,7 @@
 // Wiring
 // PB4/ADC2 - Current sensor (ACS712)
 // PB3/ADC3 - Threshold selector potentiometer (10k)
-// PB5 - Relay for shopvac
+// PB1 - Relay for shopvac
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -17,8 +17,8 @@
 
 #define TICKS_PER_SECOND   ((F_CPU / 1024) / 256)
 
-#define DELAY_START     (TICKS_PER_SECOND * 0)
-#define DELAY_STOP      (TICKS_PER_SECOND * 0)
+#define DELAY_START     (TICKS_PER_SECOND * 1)
+#define DELAY_STOP      (TICKS_PER_SECOND * 5)
 #define SAMPLING_TICKS  (TICKS_PER_SECOND / 2)
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
@@ -41,8 +41,7 @@ ISR (TIMER0_OVF_vect)
     samplingTicks = 0;
 
     //debug
-    PORTB ^= (1 << PB0);
-    if(currentValue >= 512)
+    if(currentValue >= threshold)
     {
         PORTB |= (1 << PB1);
     }
@@ -77,7 +76,8 @@ ISR (TIMER0_OVF_vect)
             // Close relay once starting delay has elapsed
             else if(ticksInState >= DELAY_START)
             {
-                PORTB |= (1 << PB5);
+                PORTB |= (1 << PB1);
+                state = STATE_RUNNING;
             }
             break;
         case STATE_STOPPING:
@@ -89,7 +89,8 @@ ISR (TIMER0_OVF_vect)
             // Open relay once stopping delay has elapsed
             else if(ticksInState >= DELAY_STOP)
             {
-                PORTB &= ~(1 << PB5);
+                PORTB &= ~(1 << PB1);
+                state = STATE_STOPPED;
             }
             break;
     }
@@ -119,9 +120,8 @@ int main()
 
     // Configure pins
     DDRB =
-        (1 << PB5) |                    // Set PB5 as output (relay pin), other pins are input
-        (1 << PB0) |                    // Set PB0/1 as output for debugging purposes
-        (1 << PB1);
+        (1 << PB1) |                    // Set PB1 as output (relay pin), other pins are input
+        (1 << PB0);                     // Set PB0 as output for debugging purposes
 
     PORTB = 0x00;
 
