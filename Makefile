@@ -46,20 +46,24 @@ TO_OBJECTS = $(addprefix $(1), $(patsubst %.c,%.o,$(2)))
 # Build configuration
 ###########################################
 
-SRC			= ./
-BIN			= ./bin/
-OBJ         = $(BIN)$(MCU)/
+SRC				= ./
+BIN				= ./bin/
+OBJ         	= $(BIN)$(MCU)/
 
-CC			= $(AVR_CC)
-INCLUDES	= -I "$(AVR_DIR)avr/$(MCU)/include"
-CFLAGS	 	= -std=gnu99 -c -g -Os -Wall -Wextra -MMD -mmcu=$(MCU) -DF_CPU=$(F_CPU) -fno-exceptions -ffunction-sections -fdata-sections -fdiagnostics-color=auto $(INCLUDES)
-LDFLAGS 	= -mmcu=$(MCU) -fdiagnostics-color=auto -Wl,-static -Wl,--gc- -finline-functions
+CC				= $(AVR_CC)
+INCLUDES		+= -I "$(AVR_DIR)avr/$(MCU)/include"
+override CFLAGS	+= -std=gnu99 -c -g -Os -Wall -Wextra -MMD -mmcu=$(MCU) -DF_CPU=$(F_CPU) -fno-exceptions -ffunction-sections -fdata-sections -fdiagnostics-color=auto $(INCLUDES)
+LDFLAGS 		+= -mmcu=$(MCU) -fdiagnostics-color=auto -Wl,-static -Wl,--gc- -finline-functions
 
-MCU			= attiny85
-F_CPU		= 16000000
+MCU				= attiny85
+F_CPU			= 16000000
 
-SRC_FILES_SHOPVAC 	= shopvac.c
-OBJECTS_SHOPVAC       = $(call TO_OBJECTS, $(BIN)attiny85/, $(SRC_FILES_SHOPVAC))
+SRC_FILES_SHOPVAC	= shopvac.c
+OBJECTS_SHOPVAC		= $(call TO_OBJECTS, $(BIN)attiny85/, $(SRC_FILES_SHOPVAC))
+
+.PHONY: tst
+tst:
+	@echo CFLAGS: $(CFLAGS)
 
 .PHONY: shopvac shopvac-isp shopvac-size
 shopvac: INCLUDES	= -I~/Library/Arduino15/packages/attiny/hardware/avr/1.0.2/variants/tiny8
@@ -103,10 +107,10 @@ $(BIN)%.dump: $(BIN)%.hex
 
 .PHONY: avr-upload-% avr-size-%
 
-avr-upload-%:
+avr-upload-%: %
 	$(AVRDUDE) $(AVRDUDE_ARGS) $(ISP_FUSES) -U flash:w:$(BIN)$*.hex:i
 
-avr-size-%:
+avr-size-%: %
 	$(AVR_SIZE) --mcu=$(MCU) $(BIN)$*.elf
 
 ###########################################

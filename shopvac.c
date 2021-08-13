@@ -4,24 +4,41 @@
 // Wiring
 // PB4/ADC2 - Current sensor (ACS712)
 // PB3/ADC3 - Threshold selector potentiometer (10k)
-// PB1 - Relay for shopvac
+// PB0 - Relay for shopvac
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
 
-#define STATE_RUNNING   1
-#define STATE_STOPPED   2
-#define STATE_STARTING  3
-#define STATE_STOPPING  4
+#define STATE_RUNNING       1
+#define STATE_STOPPED       2
+#define STATE_STARTING      3
+#define STATE_STOPPING      4
 
 #define TICKS_PER_SECOND   ((F_CPU / 1024) / 256)
 
-#define DELAY_START     (TICKS_PER_SECOND * 1)
-#define DELAY_STOP      (TICKS_PER_SECOND * 5)
-#define SAMPLING_TICKS  (TICKS_PER_SECOND / 2)
+#define DELAY_START         (TICKS_PER_SECOND * 1)
+#define DELAY_STOP          (TICKS_PER_SECOND * 5)
+#define SAMPLING_TICKS      (TICKS_PER_SECOND / 2)
 
-#define MAX(a,b) ((a) > (b) ? (a) : (b))
+#define PIN_RELAY           PB0
+#define PIN_DEBUG1          PB1
+#define PIN_DEBUG2          PB2
+#define MUX_THRESHOLD       ((1 << MUX1) | (1 << MUX0))
+#define MUX_CURRENT         ((1 << MUX1))
+
+#define MAX(a,b)            ((a) > (b) ? (a) : (b))
+
+#define PIN_ENABLE(pb)     do{ PORTB |= (1 << (pb)); }while(0)
+#define PIN_DISABLE(pb)    do{ PORTB &= ~(1 << (pb)); }while(0)
+
+#if defined DEBUG
+#  define DEBUG_PIN_ENABLE(pb) PIN_ENABLE(pb)
+#  define DEBUG_PIN_DISABLE(pb) PIN_DISABLE(pb)
+#else
+#  define DEBUG_PIN_ENABLE(pb)  while(0)
+#  define DEBUG_PIN_DISABLE(pb)  while(0)
+#endif
 
 uint8_t state = STATE_STOPPED;
 uint16_t threshold;
@@ -40,14 +57,13 @@ ISR (TIMER0_OVF_vect)
 
     samplingTicks = 0;
 
-    //debug
     if(currentValue >= threshold)
     {
-        PORTB |= (1 << PB1);
+        DEBUG_PIN_ENABLE(PIN_DEBUG2);
     }
     else
     {
-        PORTB &= ~(1 << PB1);
+        DEBUG_PIN_DISABLE(PIN_DEBUG2);
     }
 
     switch(state) {
@@ -56,6 +72,7 @@ ISR (TIMER0_OVF_vect)
             if(currentValue >= threshold)
             {
                 state = STATE_STARTING;
+                DEBUG_PIN_ENABLE(PIN_DEBUG1);
                 ticksInState = 0;
             }
             break;
@@ -64,6 +81,7 @@ ISR (TIMER0_OVF_vect)
             if(currentValue < threshold)
             {
                 state = STATE_STOPPING;
+                DEBUG_PIN_ENABLE(PIN_DEBUG1);
                 ticksInState = 0;
             }
             break;
@@ -72,12 +90,14 @@ ISR (TIMER0_OVF_vect)
             if(currentValue < threshold)
             {
                 state = STATE_STOPPED;
+                DEBUG_PIN_DISABLE(PIN_DEBUG1);
             }
             // Close relay once starting delay has elapsed
             else if(ticksInState >= DELAY_START)
             {
-                PORTB |= (1 << PB1);
                 state = STATE_RUNNING;
+                PIN_ENABLE(PIN_RELAY);
+                DEBUG_PIN_DISABLE(PIN_DEBUG1);
             }
             break;
         case STATE_STOPPING:
@@ -85,12 +105,14 @@ ISR (TIMER0_OVF_vect)
             if(currentValue >= threshold)
             {
                 state = STATE_RUNNING;
+                DEBUG_PIN_DISABLE(PIN_DEBUG1);
             }
             // Open relay once stopping delay has elapsed
             else if(ticksInState >= DELAY_STOP)
             {
-                PORTB &= ~(1 << PB1);
                 state = STATE_STOPPED;
+                PIN_DISABLE(PIN_RELAY);
+                DEBUG_PIN_DISABLE(PIN_DEBUG1);
             }
             break;
     }
@@ -119,10 +141,11 @@ int main()
     TIMSK |= (1 << TOIE0);              // Enable timer0 interrupt
 
     // Configure pins
-    DDRB =
-        (1 << PB1) |                    // Set PB1 as output (relay pin), other pins are input
-        (1 << PB0);                     // Set PB0 as output for debugging purposes
-
+    DDRB = (1 << PIN_RELAY)
+#if defined DEBUG
+        | (1 << PIN_DEBUG1) | (1 << PIN_DEBUG2)
+#endif
+        ;
     PORTB = 0x00;
 
     // Configure ADC
@@ -138,12 +161,12 @@ int main()
         // Read the threshold value every 256 iterations
         if(iter-- == 0)
         {
-            threshold = read_adc((1 << MUX1) | (1 << MUX0));    // ADC3/PB3
+            threshold = read_adc(MUX_THRESHOLD);
             _delay_ms(1);
         }
 
         // Store max value of ADC
-        uint16_t newCurrent = read_adc(1 << MUX1);  // ADC2/PB4
+        uint16_t newCurrent = read_adc(MUX_CURRENT);
         currentValue = MAX(currentValue, newCurrent);
     }
 }
